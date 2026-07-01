@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  influx-dashboard:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      FLASK_ENV: production
+      INFLUXDB_URL: ${INFLUXDB_URL:-http://134.141.1.115:8086}
+      INFLUXDB_USERNAME: ${INFLUXDB_USERNAME:-extreme}
+      INFLUXDB_PASSWORD: ${INFLUXDB_PASSWORD:-Extr3m3!}
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Note: This assumes InfluxDB is already running externally.
+# To add InfluxDB to this compose stack, uncomment below:
+#
+# influxdb:
+#   image: influxdb:2.7-alpine
+#   ports:
+#     - "8086:8086"
+#   volumes:
+#     - influxdb-data:/var/lib/influxdb2
+#   environment:
+#     INFLUXDB_DB: mydb
+#     INFLUXDB_ADMIN_USER: extreme
+#     INFLUXDB_ADMIN_PASSWORD: Extr3m3!
+#
+# volumes:
+#   influxdb-data:
