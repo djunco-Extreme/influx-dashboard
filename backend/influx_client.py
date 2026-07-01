@@ -74,11 +74,19 @@ def get_buckets(username: str = None) -> List[Dict[str, Any]]:
 
         result = []
         for bucket in buckets.buckets:
+            retention = []
+            if bucket.retention_rules:
+                for rule in bucket.retention_rules:
+                    retention.append({
+                        "everySeconds": rule.every_seconds if hasattr(rule, 'every_seconds') else rule.everySeconds,
+                        "shardGroupDurationSeconds": rule.shard_group_duration_seconds if hasattr(rule, 'shard_group_duration_seconds') else getattr(rule, 'shardGroupDurationSeconds', None),
+                    })
+
             result.append({
                 "id": bucket.id,
                 "name": bucket.name,
                 "type": bucket.type,
-                "retentionRules": bucket.retention_rules,
+                "retentionRules": retention,
                 "createdAt": bucket.created_at.isoformat() if hasattr(bucket, 'created_at') else None,
             })
 
