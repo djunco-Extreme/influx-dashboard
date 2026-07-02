@@ -1,13 +1,35 @@
 version: '3.8'
 
 services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    environment:
+      INFLUXDB_DB: mydb
+      INFLUXDB_ADMIN_USER: ${INFLUXDB_USERNAME:-extreme}
+      INFLUXDB_ADMIN_PASSWORD: ${INFLUXDB_PASSWORD:-Extr3m3!}
+      INFLUXDB_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-mytoken}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   influx-dashboard:
     build: .
     ports:
       - "3001:3001"
+    depends_on:
+      influxdb:
+        condition: service_healthy
     environment:
       FLASK_ENV: production
-      INFLUXDB_URL: ${INFLUXDB_URL:-http://134.141.1.115:8086}
+      INFLUXDB_URL: ${INFLUXDB_URL:-http://influxdb:8086}
       INFLUXDB_USERNAME: ${INFLUXDB_USERNAME:-extreme}
       INFLUXDB_PASSWORD: ${INFLUXDB_PASSWORD:-Extr3m3!}
       INFLUXDB_ORG: ${INFLUXDB_ORG:-}
@@ -26,19 +48,5 @@ services:
       retries: 3
       start_period: 10s
 
-# Note: This assumes InfluxDB is already running externally.
-# To add InfluxDB to this compose stack, uncomment below:
-#
-# influxdb:
-#   image: influxdb:2.7-alpine
-#   ports:
-#     - "8086:8086"
-#   volumes:
-#     - influxdb-data:/var/lib/influxdb2
-#   environment:
-#     INFLUXDB_DB: mydb
-#     INFLUXDB_ADMIN_USER: extreme
-#     INFLUXDB_ADMIN_PASSWORD: Extr3m3!
-#
-# volumes:
-#   influxdb-data:
+volumes:
+  influxdb-data:
