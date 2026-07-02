@@ -22,6 +22,14 @@ export default function Report({ bucketName, refreshKey }) {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [selectedSSIDs, setSelectedSSIDs] = useState([])
+  const [allSSIDs, setAllSSIDs] = useState([
+    'AU_Guest', 'AU_POS', 'AU_Tickets', 'eduroam', 'VerizonWiFiAccess'
+  ])
+  const [timeRange, setTimeRange] = useState('12h')
+  const [customFromDate, setCustomFromDate] = useState('')
+  const [customToDate, setCustomToDate] = useState('')
+  const [showCustomRange, setShowCustomRange] = useState(false)
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -95,15 +103,153 @@ export default function Report({ bucketName, refreshKey }) {
     )
   }
 
+  const timeRangePresets = [
+    { label: 'Last 5 minutes', value: '5m' },
+    { label: 'Last 15 minutes', value: '15m' },
+    { label: 'Last 30 minutes', value: '30m' },
+    { label: 'Last 1 hour', value: '1h' },
+    { label: 'Last 3 hours', value: '3h' },
+    { label: 'Last 6 hours', value: '6h' },
+    { label: 'Last 12 hours', value: '12h' },
+    { label: 'Last 24 hours', value: '24h' },
+    { label: 'Last 2 days', value: '2d' }
+  ]
+
+  const toggleSSID = (ssid) => {
+    if (selectedSSIDs.includes(ssid)) {
+      setSelectedSSIDs(selectedSSIDs.filter(s => s !== ssid))
+    } else {
+      setSelectedSSIDs([...selectedSSIDs, ssid])
+    }
+  }
+
+  const handleApplyCustomRange = () => {
+    if (customFromDate && customToDate) {
+      setShowCustomRange(false)
+      // In a real implementation, fetch data with custom date range
+    }
+  }
+
   return (
     <div className="h-full overflow-auto bg-gray-900">
       {error && <ErrorNotice message={error} />}
 
       <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-white">Network Performance Report</h1>
-          <p className="text-gray-400 text-sm">Bucket: {bucketName}</p>
+        {/* Header & Controls */}
+        <div className="space-y-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Network Performance Report</h1>
+            <p className="text-gray-400 text-sm">Bucket: {bucketName}</p>
+          </div>
+
+          {/* SSID & Time Range Controls */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* SSID Selector */}
+            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+              <label className="block text-sm font-semibold text-gray-300 mb-3">SSID</label>
+              <div className="flex flex-wrap gap-2">
+                {allSSIDs.map((ssid) => (
+                  <button
+                    key={ssid}
+                    onClick={() => toggleSSID(ssid)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      selectedSSIDs.includes(ssid)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {ssid}
+                  </button>
+                ))}
+              </div>
+              {selectedSSIDs.length > 0 && (
+                <p className="text-xs text-gray-400 mt-2">{selectedSSIDs.length} selected</p>
+              )}
+            </div>
+
+            {/* Time Range Selector */}
+            <div className="lg:col-span-2">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <label className="block text-sm font-semibold text-gray-300 mb-3">Time Range</label>
+
+                {!showCustomRange ? (
+                  <div>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {timeRangePresets.slice(0, 6).map((preset) => (
+                        <button
+                          key={preset.value}
+                          onClick={() => setTimeRange(preset.value)}
+                          className={`px-2 py-2 rounded text-xs font-medium transition-colors ${
+                            timeRange === preset.value
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {timeRangePresets.slice(6).map((preset) => (
+                        <button
+                          key={preset.value}
+                          onClick={() => setTimeRange(preset.value)}
+                          className={`px-2 py-2 rounded text-xs font-medium transition-colors ${
+                            timeRange === preset.value
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setShowCustomRange(true)}
+                      className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm font-medium transition-colors"
+                    >
+                      Custom Range
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">From</label>
+                      <input
+                        type="datetime-local"
+                        value={customFromDate}
+                        onChange={(e) => setCustomFromDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">To</label>
+                      <input
+                        type="datetime-local"
+                        value={customToDate}
+                        onChange={(e) => setCustomToDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleApplyCustomRange}
+                        className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={() => setShowCustomRange(false)}
+                        className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Row 1: Throughput & Clients */}
