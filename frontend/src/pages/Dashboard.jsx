@@ -65,10 +65,34 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-          ) : selectedBucket ? (
-            <BucketDetail bucketName={selectedBucket} refreshKey={refreshKey} />
           ) : (
-            <BucketList buckets={buckets} onSelectBucket={setSelectedBucket} />
+            <>
+              {/* Bucket selector dropdown */}
+              <div className="bg-dark-800 border-b border-dark-700 px-6 py-4">
+                <div className="flex items-center gap-4">
+                  <label className="text-gray-300 font-medium">Select Bucket:</label>
+                  <select
+                    value={selectedBucket || ''}
+                    onChange={(e) => setSelectedBucket(e.target.value)}
+                    className="px-4 py-2 bg-dark-700 text-white border border-dark-600 rounded hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="">-- Select a bucket --</option>
+                    {buckets.map((bucket) => (
+                      <option key={bucket.id} value={bucket.name}>
+                        {bucket.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Content */}
+              {selectedBucket ? (
+                <BucketDetail bucketName={selectedBucket} refreshKey={refreshKey} />
+              ) : (
+                <BucketList buckets={buckets} onSelectBucket={setSelectedBucket} />
+              )}
+            </>
           )}
         </div>
       </div>
