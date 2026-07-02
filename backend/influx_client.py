@@ -21,14 +21,51 @@ class AuthError(InfluxError):
     pass
 
 
-def _get_client() -> InfluxDBClient:
-    """Create and return an InfluxDB client."""
+_org_cache = None
+
+def _get_org() -> str:
+    """Get the InfluxDB organization. Cache the result."""
+    global _org_cache
+    if _org_cache:
+        return _org_cache
+
+    # Try configured org first
+    if config.INFLUXDB_ORG:
+        _org_cache = config.INFLUXDB_ORG
+        return _org_cache
+
+    # Auto-discover: fetch first org from the instance
     try:
         client = InfluxDBClient(
             url=config.INFLUXDB_URL,
             username=config.INFLUXDB_USERNAME,
             password=config.INFLUXDB_PASSWORD,
-            org=config.INFLUXDB_ORG,
+        )
+        orgs_api = client.organizations_api()
+        orgs = orgs_api.find_organizations()
+        client.close()
+
+        if orgs and len(orgs.organizations) > 0:
+            _org_cache = orgs.organizations[0].name
+            log.info(f"Auto-discovered InfluxDB org: {_org_cache}")
+            return _org_cache
+    except Exception as e:
+        log.warning(f"Could not auto-discover org: {e}")
+
+    # Fallback
+    _org_cache = "my-org"
+    return _org_cache
+
+
+def _get_client() -> InfluxDBClient:
+    """Create and return an InfluxDB client."""
+    try:
+        org = _get_org()
+        client = InfluxDBClient(
+            url=config.INFLUXDB_URL,
+            username=config.INFLUXDB_USERNAME,
+            password=config.INFLUXDB_PASSWORD,
+            org=org,
         )
         # Test connection
         health = client.health()
@@ -110,7 +147,7 @@ def get_measurements(bucket_name: str) -> List[str]:
 
         # Flux query to get all measurement names
         flux_query = f'import "influxdata/influxdb/schema" schema.measurements(bucket: "{bucket_name}")'
-        org = config.INFLUXDB_ORG or "my-org"  # Use default org if not configured
+        org = _get_org()  # Use default org if not configured
         tables = query_api.query(flux_query, org=org)
 
         measurements = []
@@ -140,7 +177,7 @@ def get_measurement_metadata(bucket_name: str, measurement: str) -> Dict[str, An
 
         # Get field keys
         field_query = f'from(bucket: "{bucket_name}") |> range(start: -30d) |> filter(fn: (r) => r._measurement == "{measurement}") |> keys()'
-        org = config.INFLUXDB_ORG or "my-org"
+        org = _get_org()
         field_tables = query_api.query(field_query, org=org)
         fields = []
         for table in field_tables:
@@ -200,7 +237,7 @@ def get_recent_data(bucket_name: str, measurement: str, field: str = None, limit
                 |> sort(columns: ["_time"], desc: true)
                 |> limit(n: {limit})'''
 
-        org = config.INFLUXDB_ORG or "my-org"
+        org = _get_org()
         tables = query_api.query(flux_query, org=org)
 
         results = []
@@ -228,7 +265,7 @@ def query_data(bucket_name: str, flux_query: str, range_start: str = "-24h") -> 
         client = _get_client()
         query_api = client.query_api()
 
-        org = config.INFLUXDB_ORG or "my-org"
+        org = _get_org()
         tables = query_api.query(flux_query, org=org)
 
         results = []
