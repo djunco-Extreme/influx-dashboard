@@ -4,6 +4,7 @@ import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend
 } from 'recharts'
+import { RefreshCw } from 'lucide-react'
 import Spinner from './Spinner'
 import ErrorNotice from './ErrorNotice'
 
@@ -36,7 +37,14 @@ export default function Report({ bucketName, refreshKey }) {
       setLoading(true)
       setError(null)
       try {
-        const res = await axios.get(`/api/buckets/${bucketName}/report`)
+        // Build query parameters
+        const params = new URLSearchParams()
+        if (selectedSSIDs.length > 0) {
+          params.append('ssids', selectedSSIDs.join(','))
+        }
+        params.append('timeRange', timeRange)
+
+        const res = await axios.get(`/api/buckets/${bucketName}/report?${params.toString()}`)
         setData(res.data || data)
       } catch (err) {
         if (err.response?.status === 404) {
@@ -53,7 +61,7 @@ export default function Report({ bucketName, refreshKey }) {
     if (bucketName) {
       fetchReportData()
     }
-  }, [bucketName, refreshKey])
+  }, [bucketName, selectedSSIDs, timeRange, refreshKey])
 
   const getSampleData = () => ({
     throughput: Array.from({ length: 16 }, (_, i) => ({
@@ -130,6 +138,16 @@ export default function Report({ bucketName, refreshKey }) {
     }
   }
 
+  const handleRefresh = () => {
+    // Trigger data refetch by using the existing useEffect dependency
+    window.location.reload()
+  }
+
+  const getTimeRangeLabel = () => {
+    const preset = timeRangePresets.find(p => p.value === timeRange)
+    return preset ? preset.label : timeRange
+  }
+
   return (
     <div className="h-full overflow-auto bg-gray-900">
       {error && <ErrorNotice message={error} />}
@@ -146,7 +164,17 @@ export default function Report({ bucketName, refreshKey }) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* SSID Selector */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <label className="block text-sm font-semibold text-gray-300 mb-3">SSID</label>
+              <div className="flex justify-between items-center mb-3">
+                <label className="block text-sm font-semibold text-gray-300">SSID</label>
+                {selectedSSIDs.length > 0 && (
+                  <button
+                    onClick={() => setSelectedSSIDs([])}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {allSSIDs.map((ssid) => (
                   <button
@@ -249,6 +277,29 @@ export default function Report({ bucketName, refreshKey }) {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Status Bar - Applied Filters */}
+          <div className="bg-gray-800 rounded-lg p-3 border border-gray-700 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-400">
+                <span>Time Range: <span className="text-gray-200 font-medium">{getTimeRangeLabel()}</span></span>
+                {selectedSSIDs.length > 0 && (
+                  <>
+                    {' • '}
+                    <span>SSIDs: <span className="text-gray-200 font-medium">{selectedSSIDs.length} selected</span></span>
+                  </>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         </div>
 

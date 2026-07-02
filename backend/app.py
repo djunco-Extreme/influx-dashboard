@@ -207,6 +207,121 @@ def query():
         return jsonify({"error": "influx_error", "message": str(e)}), 500
 
 
+@app.get("/api/buckets/<bucket_name>/report")
+@login_required
+def report(bucket_name):
+    """Fetch report data from InfluxDB based on filters."""
+    if not bucket_name or len(bucket_name) > 256:
+        return jsonify({"error": "bad_request"}), 400
+
+    # Get query parameters
+    ssids_param = request.args.get("ssids", "").strip()
+    time_range = request.args.get("timeRange", "12h").strip()
+
+    ssids = [s.strip() for s in ssids_param.split(",") if s.strip()] if ssids_param else []
+
+    try:
+        # Build Flux query for throughput data
+        throughput_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "throughput")
+  |> aggregateWindow(every: 10m, fn: mean)
+  |> sort(columns: ["_time"])
+'''
+
+        # Build Flux query for clients data
+        clients_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "clients")
+  |> aggregateWindow(every: 10m, fn: mean)
+  |> sort(columns: ["_time"])
+'''
+
+        # Build Flux query for protocol distribution
+        protocol_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "clients_by_protocol")
+  |> last()
+'''
+
+        # Fetch data in parallel
+        throughput_data = influx_client.query_data(bucket_name, throughput_query, f"-{time_range}")
+        clients_data = influx_client.query_data(bucket_name, clients_query, f"-{time_range}")
+        protocol_data = influx_client.query_data(bucket_name, protocol_query, f"-{time_range}")
+
+        # Transform data for report format
+        def transform_time_series(data):
+            """Transform InfluxDB data into time series format."""
+            result = {}
+            for item in data:
+                timestamp = item.get("_time", "")
+                value = item.get("_value", 0)
+                field = item.get("_field", "value")
+
+                if timestamp not in result:
+                    result[timestamp] = {"time": timestamp}
+                result[timestamp][field] = value
+
+            return list(result.values())
+
+        # Build response
+        report_data = {
+            "throughput": transform_time_series(throughput_data),
+            "clients": transform_time_series(clients_data),
+            "peakClients": max([d.get("clients", 0) for d in clients_data], default=0),
+            "uniqueClients": len(set([d.get("host") for d in clients_data if d.get("host")])),
+            "totalTraffic": {
+                "upload": sum([d.get("upload", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
+                "download": sum([d.get("download", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
+                "total": sum([d.get("total", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
+            },
+            "clientsByProtocol": transform_protocol_data(protocol_data),
+            "clientsByDeviceType": [],
+            "clientsBySSID": [],
+            "topClientsByThroughput": [],
+            "events": [],
+            "appliedFilters": {
+                "ssids": ssids,
+                "timeRange": time_range,
+                "bucket": bucket_name,
+            }
+        }
+
+        return jsonify(report_data)
+    except influx_client.InfluxError as e:
+        return jsonify({"error": "influx_error", "message": str(e)}), 500
+    except Exception as e:
+        log.error(f"Report query error: {e}")
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
+def transform_protocol_data(data):
+    """Transform protocol data into chart format."""
+    protocols = {}
+    colors = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6"]
+
+    for item in data:
+        protocol = item.get("protocol", "unknown")
+        value = item.get("_value", 0)
+        if protocol in protocols:
+            protocols[protocol] += value
+        else:
+            protocols[protocol] = value
+
+    result = []
+    for idx, (protocol, count) in enumerate(protocols.items()):
+        result.append({
+            "name": protocol,
+            "value": count,
+            "color": colors[idx % len(colors)]
+        })
+
+    return sorted(result, key=lambda x: x["value"], reverse=True)
+
+
 # ── Static SPA (single-service deploy) ───────────────────────────────────────
 
 @app.get("/")
