@@ -110,7 +110,8 @@ def get_measurements(bucket_name: str) -> List[str]:
 
         # Flux query to get all measurement names
         flux_query = f'import "influxdata/influxdb/schema" schema.measurements(bucket: "{bucket_name}")'
-        tables = query_api.query(flux_query)
+        org = config.INFLUXDB_ORG or "my-org"  # Use default org if not configured
+        tables = query_api.query(flux_query, org=org)
 
         measurements = []
         for table in tables:
@@ -139,7 +140,8 @@ def get_measurement_metadata(bucket_name: str, measurement: str) -> Dict[str, An
 
         # Get field keys
         field_query = f'from(bucket: "{bucket_name}") |> range(start: -30d) |> filter(fn: (r) => r._measurement == "{measurement}") |> keys()'
-        field_tables = query_api.query(field_query)
+        org = config.INFLUXDB_ORG or "my-org"
+        field_tables = query_api.query(field_query, org=org)
         fields = []
         for table in field_tables:
             for record in table.records:
@@ -150,7 +152,7 @@ def get_measurement_metadata(bucket_name: str, measurement: str) -> Dict[str, An
         # Get tag keys - try to get from schema
         tag_query = f'import "influxdata/influxdb/schema" schema.tagKeys(bucket: "{bucket_name}", measurement: "{measurement}")'
         try:
-            tag_tables = query_api.query(tag_query)
+            tag_tables = query_api.query(tag_query, org=org)
             tags = []
             for table in tag_tables:
                 for record in table.records:
@@ -198,7 +200,8 @@ def get_recent_data(bucket_name: str, measurement: str, field: str = None, limit
                 |> sort(columns: ["_time"], desc: true)
                 |> limit(n: {limit})'''
 
-        tables = query_api.query(flux_query)
+        org = config.INFLUXDB_ORG or "my-org"
+        tables = query_api.query(flux_query, org=org)
 
         results = []
         for table in tables:
@@ -225,7 +228,8 @@ def query_data(bucket_name: str, flux_query: str, range_start: str = "-24h") -> 
         client = _get_client()
         query_api = client.query_api()
 
-        tables = query_api.query(flux_query)
+        org = config.INFLUXDB_ORG or "my-org"
+        tables = query_api.query(flux_query, org=org)
 
         results = []
         for table in tables:
