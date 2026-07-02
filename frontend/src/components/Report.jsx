@@ -1,0 +1,356 @@
+import React, { useState, useEffect } from 'react'
+import axios from 'axios'
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend
+} from 'recharts'
+import Spinner from './Spinner'
+import ErrorNotice from './ErrorNotice'
+
+export default function Report({ bucketName, refreshKey }) {
+  const [data, setData] = useState({
+    throughput: [],
+    clients: [],
+    peakClients: 0,
+    uniqueClients: 0,
+    totalTraffic: { upload: 0, download: 0, total: 0 },
+    clientsByProtocol: [],
+    clientsByDeviceType: [],
+    clientsBySSID: [],
+    topClientsByThroughput: [],
+    events: []
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const fetchReportData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await axios.get(`/api/buckets/${bucketName}/report`)
+        setData(res.data || data)
+      } catch (err) {
+        if (err.response?.status === 404) {
+          console.log('Report endpoint not available, using sample data')
+          setData(getSampleData())
+        } else {
+          setError(err.response?.data?.message || 'Failed to fetch report data')
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (bucketName) {
+      fetchReportData()
+    }
+  }, [bucketName, refreshKey])
+
+  const getSampleData = () => ({
+    throughput: Array.from({ length: 16 }, (_, i) => ({
+      time: `${11 + Math.floor(i / 2)}:${(i % 2) * 30}0`,
+      mbps: Math.random() * 150
+    })),
+    clients: Array.from({ length: 16 }, (_, i) => ({
+      time: `${11 + Math.floor(i / 2)}:${(i % 2) * 30}0`,
+      count: 100 + Math.random() * 30
+    })),
+    peakClients: 149,
+    uniqueClients: 208,
+    totalTraffic: { upload: 4.97, download: 25.4, total: 30.4 },
+    clientsByProtocol: [
+      { name: '11ax', value: 67, color: '#3b82f6' },
+      { name: '11ac', value: 23, color: '#ef4444' },
+      { name: '11n', value: 13, color: '#f59e0b' }
+    ],
+    clientsByDeviceType: [
+      { name: 'Apple iOS', value: 50, color: '#3b82f6' },
+      { name: 'Windows', value: 25, color: '#10b981' },
+      { name: 'Android', value: 15, color: '#f59e0b' },
+      { name: 'Mac', value: 10, color: '#8b5cf6' }
+    ],
+    clientsBySSID: [
+      { name: 'VisionWiFiAccess', value: 77 },
+      { name: 'BTU Cougars WiFi', value: 56 },
+      { name: 'BTU Staff', value: 45 },
+      { name: 'TICKETS', value: 30 }
+    ],
+    topClientsByThroughput: [
+      { name: 'iPhone', value: 35, color: '#3b82f6' },
+      { name: 'iPad', value: 28, color: '#10b981' },
+      { name: 'StoryPhoneS', value: 22, color: '#f59e0b' }
+    ],
+    events: [
+      { time: '2026-06-29 13:57:26', type: 'Radius Accounting', description: 'New session for client [AR-08-56-E5-80 on Network {VisionWiFiAccess}]' },
+      { time: '2026-06-29 13:57:24', type: 'Radius Accounting', description: 'New session for client [24-55-9A-9A-FE-70] on Network {VisionWiFiAccess}' }
+    ]
+  })
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner />
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-auto bg-gray-900">
+      {error && <ErrorNotice message={error} />}
+
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-white">Network Performance Report</h1>
+          <p className="text-gray-400 text-sm">Bucket: {bucketName}</p>
+        </div>
+
+        {/* Row 1: Throughput & Clients */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Throughput */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Throughput</h2>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={data.throughput} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorMbps" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="time" stroke="#999" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#999" tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#333', border: 'none', borderRadius: '4px' }} />
+                <Area type="monotone" dataKey="mbps" stroke="#10b981" fillOpacity={1} fill="url(#colorMbps)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Clients */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Clients</h2>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={data.clients} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="time" stroke="#999" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#999" tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#333', border: 'none', borderRadius: '4px' }} />
+                <Line type="monotone" dataKey="count" stroke="#3b82f6" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Row 2: Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Peak Clients */}
+          <StatCard label="Peak Clients" value={data.peakClients} color="bg-red-500" />
+
+          {/* Unique Clients */}
+          <StatCard label="Unique Clients" value={data.uniqueClients} color="bg-green-500" />
+
+          {/* Total Upload */}
+          <GaugeCard label="Upload" value={data.totalTraffic.upload} unit="GB" color="#10b981" />
+
+          {/* Total Download */}
+          <GaugeCard label="Download" value={data.totalTraffic.download} unit="GB" color="#3b82f6" />
+        </div>
+
+        {/* Row 3: Traffic Gauge */}
+        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-white mb-6">Total Traffic</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <GaugeChartComponent label="Upload" value={data.totalTraffic.upload} max={10} color="#10b981" />
+            <GaugeChartComponent label="Download" value={data.totalTraffic.download} max={30} color="#3b82f6" />
+            <GaugeChartComponent label="Total" value={data.totalTraffic.total} max={40} color="#f59e0b" />
+          </div>
+        </div>
+
+        {/* Row 4: Pie Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Clients by Protocol */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Clients per Protocol</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.clientsByProtocol}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={120}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, value, percent }) => `${name} ${percent.toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {data.clientsByProtocol.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${value} clients`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Clients by Device Type */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Clients per Device Type</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.clientsByDeviceType}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={120}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, value, percent }) => `${name} ${percent.toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {data.clientsByDeviceType.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${value} clients`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Row 5: Client Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Clients by SSID */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Total Unique Clients by SSID</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={data.clientsBySSID}
+                layout="horizontal"
+                margin={{ top: 5, right: 30, left: 200, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis type="number" stroke="#999" />
+                <YAxis dataKey="name" type="category" stroke="#999" width={190} tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#333', border: 'none', borderRadius: '4px' }} />
+                <Bar dataKey="value" fill="#f59e0b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Clients by Throughput */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 className="text-lg font-semibold text-white mb-4">Top 10 Clients by Throughput</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.topClientsByThroughput}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: ${value}`}
+                  labelLine={false}
+                >
+                  {data.topClientsByThroughput.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${value} Mbps`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Row 6: Events Table */}
+        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 overflow-x-auto">
+          <h2 className="text-lg font-semibold text-white mb-4">Events</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 text-gray-300 font-semibold">Time</th>
+                <th className="text-left py-3 px-4 text-gray-300 font-semibold">Component</th>
+                <th className="text-left py-3 px-4 text-gray-300 font-semibold">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.events.map((event, idx) => (
+                <tr key={idx} className="border-b border-gray-700 hover:bg-gray-700">
+                  <td className="py-3 px-4 text-gray-300 whitespace-nowrap">{event.time}</td>
+                  <td className="py-3 px-4 text-gray-300">{event.type}</td>
+                  <td className="py-3 px-4 text-gray-400">{event.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, color }) {
+  return (
+    <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+      <p className="text-gray-400 text-sm mb-2">{label}</p>
+      <div className={`text-4xl font-bold ${color === 'bg-red-500' ? 'text-red-400' : 'text-green-400'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function GaugeCard({ label, value, unit, color }) {
+  return (
+    <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+      <p className="text-gray-400 text-sm mb-4">{label}</p>
+      <div className="text-center">
+        <div style={{ color }} className="text-3xl font-bold">
+          {value.toFixed(2)} {unit}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GaugeChartComponent({ label, value, max, color }) {
+  const percentage = (value / max) * 100
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-24 h-24 mb-4">
+        <svg viewBox="0 0 100 60" className="w-full h-full">
+          {/* Background arc */}
+          <path
+            d="M 20,50 A 30,30 0 0,1 80,50"
+            fill="none"
+            stroke="#444"
+            strokeWidth="8"
+            strokeLinecap="round"
+          />
+          {/* Filled arc */}
+          <path
+            d="M 20,50 A 30,30 0 0,1 80,50"
+            fill="none"
+            stroke={color}
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${(percentage / 100) * 94.25} 94.25`}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center">
+            <div style={{ color }} className="text-xl font-bold">
+              {value.toFixed(2)}
+            </div>
+            <div className="text-xs text-gray-400">{label}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

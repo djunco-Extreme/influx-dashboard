@@ -1,5 +1,5 @@
 import React from 'react'
-import { Database, Home } from 'lucide-react'
+import { Database, Home, BarChart3 } from 'lucide-react'
 
 export default function Sidebar({ onNavigate }) {
   return (
@@ -18,6 +18,13 @@ export default function Sidebar({ onNavigate }) {
         >
           <Home size={20} />
           <span>Dashboard</span>
+        </a>
+        <a
+          href="/report"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-dark-700 text-gray-300 hover:text-white transition-colors"
+        >
+          <BarChart3 size={20} />
+          <span>Report</span>
         </a>
       </nav>
 
