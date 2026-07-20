@@ -46,6 +46,10 @@ def _basic_auth_gate():
         and hmac.compare_digest(auth.password or "", config.BASIC_AUTH_PASSWORD)
     ):
         return
+    # Allow authenticated sessions to bypass Basic Auth gate
+    session = current_session()
+    if session:
+        return
     resp = jsonify({"error": "unauthorized", "message": "Authentication required"})
     resp.status_code = 401
     resp.headers["WWW-Authenticate"] = 'Basic realm="InfluxDB Dashboard"'

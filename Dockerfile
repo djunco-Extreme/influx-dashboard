@@ -28,4 +28,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 3001
 
 # Run Flask with gunicorn
-CMD ["sh", "-c", "cd /app/backend && gunicorn -b 0.0.0.0:3001 --workers 4 --timeout 60 --access-logfile - app:app"]
+CMD ["sh", "-c", "cd /app/backend && gunicorn -b 0.0.0.0:3001 --workers 4 --timeout 600 --access-logfile - app:app"]

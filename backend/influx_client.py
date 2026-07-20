@@ -40,6 +40,7 @@ def _get_org() -> str:
             url=config.INFLUXDB_URL,
             username=config.INFLUXDB_USERNAME,
             password=config.INFLUXDB_PASSWORD,
+            timeout=600000,  # 600 seconds in milliseconds
         )
         orgs_api = client.organizations_api()
         orgs = orgs_api.find_organizations()
@@ -66,6 +67,7 @@ def _get_client() -> InfluxDBClient:
             username=config.INFLUXDB_USERNAME,
             password=config.INFLUXDB_PASSWORD,
             org=org,
+            timeout=600000,  # 600 seconds in milliseconds
         )
         # Test connection
         health = client.health()
@@ -85,6 +87,7 @@ def authenticate(username: str, password: str) -> str:
             username=username,
             password=password,
             org=config.INFLUXDB_ORG,
+            timeout=600000,  # 600 seconds in milliseconds
         )
         health = client.health()
         client.close()
