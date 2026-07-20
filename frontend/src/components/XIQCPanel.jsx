@@ -4,7 +4,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import Spinner from './Spinner'
 import { Wifi, Users, Activity } from 'lucide-react'
 
-export default function XIQCPanel({ bucketName = 'florida' }) {
+export default function XIQCPanel({ availableBuckets = [] }) {
+  const [selectedBucket, setSelectedBucket] = useState('florida')
   const [throughputData, setThroughputData] = useState([])
   const [clientStats, setClientStats] = useState({ peak: 0, unique: 0 })
   const [ssidOptions, setSsidOptions] = useState([])
@@ -17,7 +18,7 @@ export default function XIQCPanel({ bucketName = 'florida' }) {
     const fetchSSIDs = async () => {
       try {
         // First get measurement metadata to discover SSIDs
-        const metaRes = await axios.get(`/api/buckets/${bucketName}/measurements/MuStats/metadata`)
+        const metaRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/metadata`)
         console.log('Measurement metadata:', metaRes.data)
 
         // Extract unique SSIDs from tags
@@ -37,7 +38,7 @@ export default function XIQCPanel({ bucketName = 'florida' }) {
       }
     }
     fetchSSIDs()
-  }, [bucketName])
+  }, [selectedBucket])
 
   // Fetch throughput data
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function XIQCPanel({ bucketName = 'florida' }) {
       setLoading(true)
       setError(null)
       try {
-        const dataRes = await axios.get(`/api/buckets/${bucketName}/measurements/MuStats/data?limit=200`)
+        const dataRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/data?limit=200`)
         const rawData = dataRes.data.data || []
 
         // Filter by SSID if selected
@@ -93,7 +94,7 @@ export default function XIQCPanel({ bucketName = 'florida' }) {
     }
 
     fetchThroughputData()
-  }, [bucketName, selectedSSID])
+  }, [selectedBucket, selectedSSID])
 
   return (
     <div className="space-y-6">
@@ -107,20 +108,43 @@ export default function XIQCPanel({ bucketName = 'florida' }) {
           </div>
         </div>
 
-        {/* SSID Selector */}
-        <div className="mt-4">
-          <label className="text-sm text-gray-400 block mb-2">Select Network (SSID)</label>
-          <select
-            value={selectedSSID}
-            onChange={(e) => setSelectedSSID(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
-          >
-            {ssidOptions.map(ssid => (
-              <option key={ssid} value={ssid}>
-                {ssid === 'all' ? 'All Networks' : ssid}
-              </option>
-            ))}
-          </select>
+        {/* Bucket and SSID Selectors */}
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          {/* Bucket Selector */}
+          <div>
+            <label className="text-sm text-gray-400 block mb-2">Select Bucket</label>
+            <select
+              value={selectedBucket}
+              onChange={(e) => setSelectedBucket(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+            >
+              {availableBuckets.length > 0 ? (
+                availableBuckets.map(bucket => (
+                  <option key={bucket.id || bucket.name} value={bucket.name}>
+                    {bucket.name}
+                  </option>
+                ))
+              ) : (
+                <option value="florida">florida</option>
+              )}
+            </select>
+          </div>
+
+          {/* SSID Selector */}
+          <div>
+            <label className="text-sm text-gray-400 block mb-2">Select Network (SSID)</label>
+            <select
+              value={selectedSSID}
+              onChange={(e) => setSelectedSSID(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+            >
+              {ssidOptions.map(ssid => (
+                <option key={ssid} value={ssid}>
+                  {ssid === 'all' ? 'All Networks' : ssid}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

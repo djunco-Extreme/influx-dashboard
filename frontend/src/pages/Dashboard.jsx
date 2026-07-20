@@ -120,7 +120,7 @@ export default function Dashboard() {
               {/* Content */}
               {viewMode === 'xiqc' ? (
                 <div className="p-6 overflow-auto">
-                  <XIQCPanel bucketName="florida" />
+                  <XIQCPanel availableBuckets={buckets} />
                 </div>
               ) : selectedBucket ? (
                 <BucketDetail bucketName={selectedBucket} refreshKey={refreshKey} />
