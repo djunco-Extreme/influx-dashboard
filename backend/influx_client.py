@@ -227,15 +227,18 @@ def get_recent_data(bucket_name: str, measurement: str, field: str = None, limit
         client = _get_client()
         query_api = client.query_api()
 
+        # For large measurements like MuStats, use shorter time range to reduce data volume
+        time_range = "-4h" if measurement == "MuStats" else "-24h"
+
         if field:
             flux_query = f'''from(bucket: "{bucket_name}")
-                |> range(start: -24h)
+                |> range(start: {time_range})
                 |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "{field}")
                 |> sort(columns: ["_time"], desc: true)
                 |> limit(n: {limit})'''
         else:
             flux_query = f'''from(bucket: "{bucket_name}")
-                |> range(start: -24h)
+                |> range(start: {time_range})
                 |> filter(fn: (r) => r._measurement == "{measurement}")
                 |> sort(columns: ["_time"], desc: true)
                 |> limit(n: {limit})'''

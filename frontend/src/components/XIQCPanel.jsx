@@ -17,8 +17,12 @@ export default function XIQCPanel({ availableBuckets = [] }) {
   useEffect(() => {
     const fetchSSIDs = async () => {
       try {
-        // First get measurement metadata to discover SSIDs
-        const metaRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/metadata`)
+        // First get measurement metadata - with timeout to prevent hanging
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+        const metaRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/metadata`, { signal: controller.signal })
+        clearTimeout(timeoutId)
         console.log('Measurement metadata:', metaRes.data)
 
         // Extract unique SSIDs from tags
@@ -48,7 +52,12 @@ export default function XIQCPanel({ availableBuckets = [] }) {
       setLoading(true)
       setError(null)
       try {
-        const dataRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/data?limit=200`)
+        // Request very small dataset to prevent memory issues
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
+        const dataRes = await axios.get(`/api/buckets/${selectedBucket}/measurements/MuStats/data?limit=20`, { signal: controller.signal })
+        clearTimeout(timeoutId)
         const rawData = dataRes.data.data || []
 
         // Filter by SSID if selected
@@ -93,8 +102,16 @@ export default function XIQCPanel({ availableBuckets = [] }) {
           unique: uniqueClients.size || 0,
         })
       } catch (err) {
-        console.error('Failed to fetch throughput data:', err)
-        setError('Could not load throughput data')
+        if (err.name === 'AbortError') {
+          console.error('Request timeout - data taking too long to load:', err)
+          setError('Data loading timed out - the MuStats measurement is too large. Try selecting a different bucket.')
+        } else if (err.response?.status >= 500) {
+          console.error('Server error loading data:', err)
+          setError('Server error - unable to load throughput data. Please try again later.')
+        } else {
+          console.error('Failed to fetch throughput data:', err)
+          setError('Could not load throughput data')
+        }
       } finally {
         setLoading(false)
       }
