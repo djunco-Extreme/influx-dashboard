@@ -4,7 +4,6 @@ import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import BucketList from '../components/BucketList'
 import BucketDetail from '../components/BucketDetail'
-import XIQCPanel from '../components/XIQCPanel'
 import Spinner from '../components/Spinner'
 import ErrorNotice from '../components/ErrorNotice'
 
@@ -14,7 +13,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [viewMode, setViewMode] = useState('buckets') // 'buckets' or 'xiqc'
 
   useEffect(() => {
     const fetchBuckets = async () => {
@@ -69,60 +67,24 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {/* View tabs and bucket selector */}
+              {/* Bucket selector */}
               <div className="bg-dark-800 border-b border-dark-700 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  {/* Tabs */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setViewMode('buckets')
-                        setSelectedBucket(null)
-                      }}
-                      className={`px-4 py-2 rounded font-medium transition-colors ${
-                        viewMode === 'buckets'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-dark-700 text-gray-300 hover:bg-dark-600'
-                      }`}
-                    >
-                      All Buckets
-                    </button>
-                    <button
-                      onClick={() => setViewMode('xiqc')}
-                      className={`px-4 py-2 rounded font-medium transition-colors ${
-                        viewMode === 'xiqc'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-dark-700 text-gray-300 hover:bg-dark-600'
-                      }`}
-                    >
-                      XIQ-C Wireless
-                    </button>
-                  </div>
-
-                  {/* Bucket selector (only for buckets view) */}
-                  {viewMode === 'buckets' && (
-                    <select
-                      value={selectedBucket || ''}
-                      onChange={(e) => setSelectedBucket(e.target.value)}
-                      className="px-4 py-2 bg-dark-700 text-white border border-dark-600 rounded hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                    >
-                      <option value="">-- Select a bucket --</option>
-                      {buckets.map((bucket) => (
-                        <option key={bucket.id} value={bucket.name}>
-                          {bucket.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+                <select
+                  value={selectedBucket || ''}
+                  onChange={(e) => setSelectedBucket(e.target.value)}
+                  className="px-4 py-2 bg-dark-700 text-white border border-dark-600 rounded hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">-- Select a bucket --</option>
+                  {buckets.map((bucket) => (
+                    <option key={bucket.id} value={bucket.name}>
+                      {bucket.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Content */}
-              {viewMode === 'xiqc' ? (
-                <div className="p-6 overflow-auto">
-                  <XIQCPanel availableBuckets={buckets} />
-                </div>
-              ) : selectedBucket ? (
+              {selectedBucket ? (
                 <BucketDetail bucketName={selectedBucket} refreshKey={refreshKey} />
               ) : (
                 <BucketList buckets={buckets} onSelectBucket={setSelectedBucket} />
