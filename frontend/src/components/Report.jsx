@@ -24,13 +24,29 @@ export default function Report({ bucketName, refreshKey }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedSSIDs, setSelectedSSIDs] = useState([])
-  const [allSSIDs, setAllSSIDs] = useState([
-    'AU_Guest', 'AU_POS', 'AU_Tickets', 'eduroam', 'VerizonWiFiAccess'
-  ])
+  const [allSSIDs, setAllSSIDs] = useState([])
   const [timeRange, setTimeRange] = useState('12h')
   const [customFromDate, setCustomFromDate] = useState('')
   const [customToDate, setCustomToDate] = useState('')
   const [showCustomRange, setShowCustomRange] = useState(false)
+
+  // Fetch available SSIDs when bucket changes
+  useEffect(() => {
+    const fetchSSIDs = async () => {
+      try {
+        const res = await axios.get(`/api/buckets/${bucketName}/ssids`)
+        setAllSSIDs(res.data.ssids || [])
+        setSelectedSSIDs([])
+      } catch (err) {
+        console.warn(`Failed to fetch SSIDs for bucket ${bucketName}`)
+        setAllSSIDs([])
+      }
+    }
+
+    if (bucketName) {
+      fetchSSIDs()
+    }
+  }, [bucketName])
 
   useEffect(() => {
     const fetchReportData = async () => {

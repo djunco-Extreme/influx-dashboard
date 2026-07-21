@@ -211,6 +211,34 @@ def query():
         return jsonify({"error": "influx_error", "message": str(e)}), 500
 
 
+@app.get("/api/buckets/<bucket_name>/ssids")
+@login_required
+def get_ssids(bucket_name):
+    """Fetch available SSIDs from a bucket."""
+    if not bucket_name or len(bucket_name) > 256:
+        return jsonify({"error": "bad_request"}), 400
+
+    try:
+        # Query to get distinct SSID values from MuStats measurement
+        ssid_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -30d)
+  |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["SSID"] != "")
+  |> group(columns: ["SSID"])
+  |> first()
+  |> group()
+  |> distinct(column: "SSID")
+  |> sort()
+'''
+        ssids_data = influx_client.query_data(bucket_name, ssid_query, "-30d")
+        ssids = list(set([item.get("SSID", "") for item in ssids_data if item.get("SSID")]))
+        ssids.sort()
+        return jsonify({"ssids": ssids})
+    except Exception as e:
+        log.warning(f"Failed to fetch SSIDs for bucket {bucket_name}: {e}")
+        return jsonify({"ssids": []})
+
+
 @app.get("/api/buckets/<bucket_name>/report")
 @login_required
 def report(bucket_name):
