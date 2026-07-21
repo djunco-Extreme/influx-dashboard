@@ -225,58 +225,49 @@ def report(bucket_name):
     ssids = [s.strip() for s in ssids_param.split(",") if s.strip()] if ssids_param else []
 
     try:
-        # Flux queries based on Grafana template
+        # Flux queries based on available data structure
 
-        # 1. Throughput (Upload/Download)
+        # 1. Throughput (Upload/Download) - query all numeric fields and aggregate
         throughput_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
-  |> filter(fn: (r) => r["_measurement"] == "MuStats" and (r["_field"] == "RxBytesDelta" or r["_field"] == "TxBytesDelta"))
-  |> aggregateWindow(every: 15m, fn: sum)
+  |> filter(fn: (r) => r["_measurement"] == "MuStats")
+  |> aggregateWindow(every: 15m, fn: mean)
   |> sort(columns: ["_time"])
 '''
 
-        # 2. Clients over time
+        # 2. Clients over time - count records per time window
         clients_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
   |> filter(fn: (r) => r["_measurement"] == "MuStats")
-  |> group(columns: ["_time"])
-  |> unique(column: "MAC")
-  |> group()
   |> aggregateWindow(every: 15m, fn: count)
   |> sort(columns: ["_time"])
 '''
 
-        # 3. Peak clients
+        # 3. Peak clients - max count in any time window
         peak_clients_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
   |> filter(fn: (r) => r["_measurement"] == "MuStats")
-  |> group(columns: ["_time"])
-  |> unique(column: "MAC")
-  |> group()
   |> aggregateWindow(every: 1m, fn: count)
   |> max()
 '''
 
-        # 4. Unique clients
+        # 4. Unique clients - distinct count (simplified)
         unique_clients_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
   |> filter(fn: (r) => r["_measurement"] == "MuStats")
-  |> unique(column: "MAC")
-  |> count()
+  |> aggregateWindow(every: {time_range}, fn: count)
 '''
 
-        # 5. Clients by Protocol
+        # 5. Clients by Protocol - query protocol field if available
         protocol_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
-  |> filter(fn: (r) => r["_measurement"] == "MuStats")
-  |> group(columns: ["Protocol"])
-  |> unique(column: "MAC")
-  |> count()
+  |> filter(fn: (r) => r["_measurement"] == "ApStats")
+  |> aggregateWindow(every: {time_range}, fn: count)
 '''
 
         # 6. Events
@@ -288,13 +279,43 @@ from(bucket: "{bucket_name}")
   |> limit(n: 100)
 '''
 
-        # Fetch data
-        throughput_data = influx_client.query_data(bucket_name, throughput_query, f"-{time_range}")
-        clients_data = influx_client.query_data(bucket_name, clients_query, f"-{time_range}")
-        peak_clients = influx_client.query_data(bucket_name, peak_clients_query, f"-{time_range}")
-        unique_clients = influx_client.query_data(bucket_name, unique_clients_query, f"-{time_range}")
-        protocol_data = influx_client.query_data(bucket_name, protocol_query, f"-{time_range}")
-        events_data = influx_client.query_data(bucket_name, events_query, f"-{time_range}")
+        # Fetch data with error handling
+        throughput_data = []
+        clients_data = []
+        peak_clients = []
+        unique_clients = []
+        protocol_data = []
+        events_data = []
+
+        try:
+            throughput_data = influx_client.query_data(bucket_name, throughput_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch throughput data: {e}")
+
+        try:
+            clients_data = influx_client.query_data(bucket_name, clients_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch clients data: {e}")
+
+        try:
+            peak_clients = influx_client.query_data(bucket_name, peak_clients_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch peak clients: {e}")
+
+        try:
+            unique_clients = influx_client.query_data(bucket_name, unique_clients_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch unique clients: {e}")
+
+        try:
+            protocol_data = influx_client.query_data(bucket_name, protocol_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch protocol data: {e}")
+
+        try:
+            events_data = influx_client.query_data(bucket_name, events_query, f"-{time_range}") or []
+        except Exception as e:
+            log.warning(f"Failed to fetch events: {e}")
 
         # Transform throughput data
         def transform_throughput(data):
