@@ -220,41 +220,38 @@ def get_ssids(bucket_name):
 
     try:
         # Query to get distinct SSID values from MuStats measurement
-        # Based on the Grafana template: SELECT distinct("SSID") FROM "MuStats"
-        # Try querying all data first to understand structure
+        # Using a simpler approach - get all MuStats data and extract SSID values
         ssid_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -30d)
   |> filter(fn: (r) => r._measurement == "MuStats")
-  |> keep(columns: ["_time", "_field", "_value", "SSID"])
-  |> filter(fn: (r) => r._field == "SSID" or r.SSID != "")
+  |> unique(column: "SSID")
 '''
         ssids_data = influx_client.query_data(bucket_name, ssid_query, "-30d")
 
-        log.info(f"Raw SSID data from {bucket_name}: {ssids_data[:5] if ssids_data else 'empty'}")
-
-        # Extract distinct SSID values - try multiple approaches
+        # Extract distinct SSID values
         ssids = set()
-
-        # Approach 1: SSID as field (from _value when _field == "SSID")
         for item in ssids_data:
-            if item.get("_field") == "SSID":
-                ssid = str(item.get("_value", "")).strip()
-                if ssid and ssid != "NA" and ssid != "Unknown" and ssid != "":
-                    ssids.add(ssid)
-            # Approach 2: SSID as tag
-            elif "SSID" in item:
-                ssid = str(item.get("SSID", "")).strip()
-                if ssid and ssid != "NA" and ssid != "Unknown" and ssid != "":
-                    ssids.add(ssid)
+            # SSID could be a tag or field
+            ssid_value = None
+
+            # Try getting from SSID tag
+            if "SSID" in item and item["SSID"]:
+                ssid_value = str(item.get("SSID", "")).strip()
+
+            # Also check if SSID is in the field
+            if (not ssid_value or ssid_value == "") and item.get("_field") == "SSID":
+                ssid_value = str(item.get("_value", "")).strip()
+
+            # Add if valid
+            if ssid_value and ssid_value not in ("NA", "Unknown", ""):
+                ssids.add(ssid_value)
 
         ssid_list = sorted(list(ssids))
-        log.info(f"Discovered {len(ssid_list)} SSIDs in bucket {bucket_name}: {ssid_list}")
+        log.info(f"Discovered {len(ssid_list)} SSIDs in bucket {bucket_name}")
         return jsonify({"ssids": ssid_list})
     except Exception as e:
         log.error(f"Failed to fetch SSIDs for bucket {bucket_name}: {e}")
-        import traceback
-        log.error(traceback.format_exc())
         return jsonify({"ssids": []})
 
 
