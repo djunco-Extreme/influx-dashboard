@@ -60,17 +60,24 @@ export default function XIQCPanel({ availableBuckets = [] }) {
         // Group by time and aggregate upload/download
         const grouped = {}
         filtered.forEach(point => {
-          const time = new Date(point.time).toLocaleTimeString()
-          if (!grouped[time]) {
-            grouped[time] = { time, upload: 0, download: 0, clientCount: 0 }
-          }
+          try {
+            const time = new Date(point.time).toLocaleTimeString()
+            if (!grouped[time]) {
+              grouped[time] = { time, upload: 0, download: 0, clientCount: 0 }
+            }
 
-          if (point.field === 'RxBytesDelta') {
-            grouped[time].download = (grouped[time].download || 0) + (typeof point.value === 'number' ? point.value : 0)
-          } else if (point.field === 'TxBytesDelta') {
-            grouped[time].upload = (grouped[time].upload || 0) + (typeof point.value === 'number' ? point.value : 0)
-          } else if (point.field === 'MAC') {
-            grouped[time].clientCount = (grouped[time].clientCount || 0) + 1
+            const numValue = typeof point.value === 'number' ? point.value : 0
+            if (!isFinite(numValue)) return
+
+            if (point.field === 'RxBytesDelta') {
+              grouped[time].download = (grouped[time].download || 0) + numValue
+            } else if (point.field === 'TxBytesDelta') {
+              grouped[time].upload = (grouped[time].upload || 0) + numValue
+            } else if (point.field === 'MAC') {
+              grouped[time].clientCount = (grouped[time].clientCount || 0) + 1
+            }
+          } catch (e) {
+            console.warn('Error processing data point:', e)
           }
         })
 
@@ -197,7 +204,7 @@ export default function XIQCPanel({ availableBuckets = [] }) {
                       dataKey="time"
                       stroke="#6b7280"
                       tick={{ fontSize: 12 }}
-                      interval={Math.floor(throughputData.length / 4)}
+                      interval={Math.max(0, Math.floor(throughputData.length / 4) - 1)}
                     />
                     <YAxis stroke="#6b7280" tick={{ fontSize: 12 }} label={{ value: 'Bytes/sec', angle: -90, position: 'insideLeft' }} />
                     <Tooltip
@@ -207,7 +214,10 @@ export default function XIQCPanel({ availableBuckets = [] }) {
                         borderRadius: '6px',
                       }}
                       labelStyle={{ color: '#f3f4f6' }}
-                      formatter={(value) => [`${(value / 1024).toFixed(2)} KB/s`, '']}
+                      formatter={(value, name) => {
+                        if (typeof value !== 'number' || !isFinite(value)) return 'N/A'
+                        return `${(value / 1024).toFixed(2)} KB/s`
+                      }}
                     />
                     <Legend />
                     <Line
