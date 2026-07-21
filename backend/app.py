@@ -219,21 +219,33 @@ def get_ssids(bucket_name):
         return jsonify({"error": "bad_request"}), 400
 
     try:
-        # Query to get distinct SSID values from MuStats measurement
+        # Query to get distinct SSID values from available measurements
         ssid_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -30d)
-  |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["SSID"] != "")
-  |> group(columns: ["SSID"])
+  |> filter(fn: (r) => r._measurement =~ /.*/)
+  |> group(columns: ["_measurement", "_field"])
   |> first()
   |> group()
-  |> distinct(column: "SSID")
-  |> sort()
 '''
-        ssids_data = influx_client.query_data(bucket_name, ssid_query, "-30d")
-        ssids = list(set([item.get("SSID", "") for item in ssids_data if item.get("SSID")]))
-        ssids.sort()
-        return jsonify({"ssids": ssids})
+        data = influx_client.query_data(bucket_name, ssid_query, "-30d")
+
+        # Extract SSIDs from the data - they could be in various fields
+        ssids = set()
+        for item in data:
+            # Check for SSID in tag
+            if "SSID" in item:
+                ssid = item.get("SSID", "").strip()
+                if ssid and ssid != "NA" and ssid != "Unknown":
+                    ssids.add(ssid)
+
+        # If no SSIDs found in tags, try to extract from field names or values
+        if not ssids:
+            # Provide empty list as fallback
+            log.warning(f"No SSIDs found in bucket {bucket_name}")
+
+        ssid_list = sorted(list(ssids))
+        return jsonify({"ssids": ssid_list})
     except Exception as e:
         log.warning(f"Failed to fetch SSIDs for bucket {bucket_name}: {e}")
         return jsonify({"ssids": []})
