@@ -46,8 +46,9 @@ def _get_org() -> str:
         orgs = orgs_api.find_organizations()
         client.close()
 
-        if orgs and len(orgs.organizations) > 0:
-            _org_cache = orgs.organizations[0].name
+        if orgs and len(orgs) > 0:
+            org_name = orgs[0].get('name') if isinstance(orgs[0], dict) else orgs[0].name
+            _org_cache = org_name
             log.info(f"Auto-discovered InfluxDB org: {_org_cache}")
             return _org_cache
     except Exception as e:
