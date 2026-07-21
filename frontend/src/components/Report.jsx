@@ -191,23 +191,32 @@ export default function Report({ bucketName, refreshKey }) {
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {allSSIDs.map((ssid) => (
-                  <button
-                    key={ssid}
-                    onClick={() => toggleSSID(ssid)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedSSIDs.includes(ssid)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  >
-                    {ssid}
-                  </button>
-                ))}
-              </div>
-              {selectedSSIDs.length > 0 && (
-                <p className="text-xs text-gray-400 mt-2">{selectedSSIDs.length} selected</p>
+              {allSSIDs.length > 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {allSSIDs.map((ssid) => (
+                      <button
+                        key={ssid}
+                        onClick={() => toggleSSID(ssid)}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                          selectedSSIDs.includes(ssid)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        {ssid}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedSSIDs.length > 0 && (
+                    <p className="text-xs text-gray-400">{selectedSSIDs.length} selected</p>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-xs text-gray-400 mb-3">No SSIDs found in this bucket</p>
+                  <p className="text-xs text-gray-500">SSIDs will appear here if they exist in your InfluxDB data</p>
+                </div>
               )}
             </div>
 

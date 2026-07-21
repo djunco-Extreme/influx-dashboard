@@ -219,36 +219,64 @@ def get_ssids(bucket_name):
         return jsonify({"error": "bad_request"}), 400
 
     try:
-        # Query to get distinct SSID values from available measurements
-        ssid_query = f'''
+        # Query to discover what tags/fields exist in the bucket
+        discovery_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -30d)
-  |> filter(fn: (r) => r._measurement =~ /.*/)
-  |> group(columns: ["_measurement", "_field"])
-  |> first()
-  |> group()
+  |> range(start: -7d)
+  |> keys()
 '''
-        data = influx_client.query_data(bucket_name, ssid_query, "-30d")
+        try:
+            keys_data = influx_client.query_data(bucket_name, discovery_query, "-7d")
+            log.info(f"Available keys in {bucket_name}: {keys_data}")
+        except Exception as e:
+            log.debug(f"Key discovery failed: {e}")
 
-        # Extract SSIDs from the data - they could be in various fields
+        # Try multiple approaches to find SSIDs
         ssids = set()
-        for item in data:
-            # Check for SSID in tag
-            if "SSID" in item:
-                ssid = item.get("SSID", "").strip()
-                if ssid and ssid != "NA" and ssid != "Unknown":
-                    ssids.add(ssid)
 
-        # If no SSIDs found in tags, try to extract from field names or values
+        # Approach 1: Look for SSID tag in MuStats
+        try:
+            ssid_query1 = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -7d)
+  |> filter(fn: (r) => r._measurement == "MuStats")
+  |> group(columns: ["SSID"])
+  |> first()
+'''
+            data = influx_client.query_data(bucket_name, ssid_query1, "-7d")
+            for item in data:
+                if "SSID" in item:
+                    ssid = item.get("SSID", "").strip()
+                    if ssid and ssid != "NA" and ssid != "Unknown":
+                        ssids.add(ssid)
+        except Exception as e:
+            log.debug(f"MuStats SSID query failed: {e}")
+
+        # Approach 2: Look for WiFiNetwork or similar field
+        try:
+            ssid_query2 = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -7d)
+  |> filter(fn: (r) => r._measurement =~ /.*/ and r._field =~ /[Ss][Ss][Ii][Dd]|[Ww]ifi[Nn]ame|[Nn]etwork/)
+  |> group(columns: ["_value"])
+  |> first()
+'''
+            data = influx_client.query_data(bucket_name, ssid_query2, "-7d")
+            for item in data:
+                ssid = item.get("_value", "")
+                if ssid and isinstance(ssid, str) and ssid.strip():
+                    ssids.add(ssid.strip())
+        except Exception as e:
+            log.debug(f"Field-based SSID query failed: {e}")
+
         if not ssids:
-            # Provide empty list as fallback
-            log.warning(f"No SSIDs found in bucket {bucket_name}")
+            log.info(f"No SSIDs discovered in bucket {bucket_name}, returning empty list")
 
         ssid_list = sorted(list(ssids))
-        return jsonify({"ssids": ssid_list})
+        return jsonify({"ssids": ssid_list, "note": "SSIDs auto-discovered from InfluxDB" if ssid_list else "No SSIDs found"})
     except Exception as e:
-        log.warning(f"Failed to fetch SSIDs for bucket {bucket_name}: {e}")
-        return jsonify({"ssids": []})
+        log.error(f"Failed to fetch SSIDs for bucket {bucket_name}: {e}")
+        return jsonify({"ssids": [], "error": str(e)})
 
 
 @app.get("/api/buckets/<bucket_name>/report")
