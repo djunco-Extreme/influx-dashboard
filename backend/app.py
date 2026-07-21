@@ -225,68 +225,134 @@ def report(bucket_name):
     ssids = [s.strip() for s in ssids_param.split(",") if s.strip()] if ssids_param else []
 
     try:
-        # Build Flux query for throughput data
+        # Flux queries based on Grafana template
+
+        # 1. Throughput (Upload/Download)
         throughput_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
-  |> filter(fn: (r) => r["_measurement"] == "throughput")
-  |> aggregateWindow(every: 10m, fn: mean)
+  |> filter(fn: (r) => r["_measurement"] == "MuStats" and (r["_field"] == "RxBytesDelta" or r["_field"] == "TxBytesDelta"))
+  |> aggregateWindow(every: 15m, fn: sum)
   |> sort(columns: ["_time"])
 '''
 
-        # Build Flux query for clients data
+        # 2. Clients over time
         clients_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
-  |> filter(fn: (r) => r["_measurement"] == "clients")
-  |> aggregateWindow(every: 10m, fn: mean)
+  |> filter(fn: (r) => r["_measurement"] == "MuStats")
+  |> group(columns: ["_time"])
+  |> unique(column: "MAC")
+  |> group()
+  |> aggregateWindow(every: 15m, fn: count)
   |> sort(columns: ["_time"])
 '''
 
-        # Build Flux query for protocol distribution
+        # 3. Peak clients
+        peak_clients_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "MuStats")
+  |> group(columns: ["_time"])
+  |> unique(column: "MAC")
+  |> group()
+  |> aggregateWindow(every: 1m, fn: count)
+  |> max()
+'''
+
+        # 4. Unique clients
+        unique_clients_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "MuStats")
+  |> unique(column: "MAC")
+  |> count()
+'''
+
+        # 5. Clients by Protocol
         protocol_query = f'''
 from(bucket: "{bucket_name}")
   |> range(start: -{time_range})
-  |> filter(fn: (r) => r["_measurement"] == "clients_by_protocol")
-  |> last()
+  |> filter(fn: (r) => r["_measurement"] == "MuStats")
+  |> group(columns: ["Protocol"])
+  |> unique(column: "MAC")
+  |> count()
 '''
 
-        # Fetch data in parallel
+        # 6. Events
+        events_query = f'''
+from(bucket: "{bucket_name}")
+  |> range(start: -{time_range})
+  |> filter(fn: (r) => r["_measurement"] == "Events")
+  |> sort(columns: ["_time"], desc: true)
+  |> limit(n: 100)
+'''
+
+        # Fetch data
         throughput_data = influx_client.query_data(bucket_name, throughput_query, f"-{time_range}")
         clients_data = influx_client.query_data(bucket_name, clients_query, f"-{time_range}")
+        peak_clients = influx_client.query_data(bucket_name, peak_clients_query, f"-{time_range}")
+        unique_clients = influx_client.query_data(bucket_name, unique_clients_query, f"-{time_range}")
         protocol_data = influx_client.query_data(bucket_name, protocol_query, f"-{time_range}")
+        events_data = influx_client.query_data(bucket_name, events_query, f"-{time_range}")
 
-        # Transform data for report format
-        def transform_time_series(data):
-            """Transform InfluxDB data into time series format."""
+        # Transform throughput data
+        def transform_throughput(data):
             result = {}
             for item in data:
                 timestamp = item.get("_time", "")
+                field = item.get("_field", "")
                 value = item.get("_value", 0)
-                field = item.get("_field", "value")
 
                 if timestamp not in result:
                     result[timestamp] = {"time": timestamp}
-                result[timestamp][field] = value
+
+                if field == "RxBytesDelta":
+                    result[timestamp]["Upload"] = result[timestamp].get("Upload", 0) + (value / 15 if value else 0)
+                elif field == "TxBytesDelta":
+                    result[timestamp]["Download"] = result[timestamp].get("Download", 0) + (value / 15 if value else 0)
 
             return list(result.values())
 
+        # Transform clients data
+        def transform_clients(data):
+            return [{"time": item.get("_time", ""), "count": item.get("_value", 0)} for item in data]
+
+        # Transform events
+        def transform_events(data):
+            return [
+                {
+                    "time": item.get("_time", ""),
+                    "type": item.get("component", "Event"),
+                    "description": item.get("description", "")
+                }
+                for item in data
+            ]
+
+        # Get metrics
+        peak_clients_value = peak_clients[0].get("_value", 0) if peak_clients else 0
+        unique_clients_value = unique_clients[0].get("_value", 0) if unique_clients else 0
+
+        # Calculate total traffic
+        total_upload = sum([d.get("Upload", 0) for d in transform_throughput(throughput_data)]) / len(throughput_data) if throughput_data else 0
+        total_download = sum([d.get("Download", 0) for d in transform_throughput(throughput_data)]) / len(throughput_data) if throughput_data else 0
+
         # Build response
         report_data = {
-            "throughput": transform_time_series(throughput_data),
-            "clients": transform_time_series(clients_data),
-            "peakClients": max([d.get("clients", 0) for d in clients_data], default=0),
-            "uniqueClients": len(set([d.get("host") for d in clients_data if d.get("host")])),
+            "throughput": transform_throughput(throughput_data),
+            "clients": transform_clients(clients_data),
+            "peakClients": peak_clients_value,
+            "uniqueClients": unique_clients_value,
             "totalTraffic": {
-                "upload": sum([d.get("upload", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
-                "download": sum([d.get("download", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
-                "total": sum([d.get("total", 0) for d in throughput_data]) / len(throughput_data) if throughput_data else 0,
+                "upload": total_upload,
+                "download": total_download,
+                "total": total_upload + total_download,
             },
             "clientsByProtocol": transform_protocol_data(protocol_data),
             "clientsByDeviceType": [],
             "clientsBySSID": [],
             "topClientsByThroughput": [],
-            "events": [],
+            "events": transform_events(events_data),
             "appliedFilters": {
                 "ssids": ssids,
                 "timeRange": time_range,
