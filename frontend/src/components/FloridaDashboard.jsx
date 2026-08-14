@@ -9,6 +9,9 @@ import { Wifi, Users, Activity, TrendingUp } from 'lucide-react'
 
 export default function FloridaDashboard() {
   const [timeRange, setTimeRange] = useState('3h')
+  const [useCustomRange, setUseCustomRange] = useState(false)
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 16))
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 16))
   const [selectedSSID, setSelectedSSID] = useState('all')
   const [ssidOptions, setSsidOptions] = useState([])
   const [dashboardData, setDashboardData] = useState(null)
@@ -39,7 +42,7 @@ export default function FloridaDashboard() {
     fetchSSIDs()
   }, [])
 
-  // Fetch dashboard data when timeRange or SSID changes
+  // Fetch dashboard data when timeRange, custom dates, or SSID changes
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true)
@@ -48,7 +51,14 @@ export default function FloridaDashboard() {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-        let url = `/api/buckets/florida/xiqc-dashboard?timeRange=${timeRange}`
+        let url = '/api/buckets/florida/xiqc-dashboard?'
+
+        if (useCustomRange) {
+          url += `startTime=${encodeURIComponent(startDate)}&endTime=${encodeURIComponent(endDate)}`
+        } else {
+          url += `timeRange=${timeRange}`
+        }
+
         if (selectedSSID && selectedSSID !== 'all') {
           url += `&ssid=${encodeURIComponent(selectedSSID)}`
         }
@@ -70,7 +80,7 @@ export default function FloridaDashboard() {
     }
 
     fetchDashboardData()
-  }, [timeRange, selectedSSID])
+  }, [timeRange, useCustomRange, startDate, endDate, selectedSSID])
 
   if (loading) {
     return (
@@ -104,8 +114,8 @@ export default function FloridaDashboard() {
           </div>
         </div>
 
-        {/* Controls Row */}
-        <div className="flex gap-4">
+        {/* Controls Row 1: SSID and Time Range */}
+        <div className="flex gap-4 mb-4">
           {/* SSID Selector */}
           <div className="flex-1">
             <label className="text-sm text-gray-400 block mb-2">Select Network (SSID)</label>
@@ -127,8 +137,12 @@ export default function FloridaDashboard() {
             <label className="text-sm text-gray-400 block mb-2">Time Range</label>
             <select
               value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+              onChange={(e) => {
+                setTimeRange(e.target.value)
+                setUseCustomRange(false)
+              }}
+              disabled={useCustomRange}
+              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500 disabled:opacity-50"
             >
               <option value="1h">Last 1 Hour</option>
               <option value="3h">Last 3 Hours</option>
@@ -138,6 +152,44 @@ export default function FloridaDashboard() {
             </select>
           </div>
         </div>
+
+        {/* Controls Row 2: Custom Date Range Toggle */}
+        <div className="flex items-center gap-2 mb-4">
+          <input
+            type="checkbox"
+            id="customRange"
+            checked={useCustomRange}
+            onChange={(e) => setUseCustomRange(e.target.checked)}
+            className="w-4 h-4 rounded border-dark-600 bg-dark-700 cursor-pointer"
+          />
+          <label htmlFor="customRange" className="text-sm text-gray-400 cursor-pointer">
+            Use Custom Date Range
+          </label>
+        </div>
+
+        {/* Controls Row 3: Custom Date Inputs */}
+        {useCustomRange && (
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="text-sm text-gray-400 block mb-2">Start Date & Time</label>
+              <input
+                type="datetime-local"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm text-gray-400 block mb-2">End Date & Time</label>
+              <input
+                type="datetime-local"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Key Metrics */}

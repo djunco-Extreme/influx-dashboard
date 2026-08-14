@@ -455,15 +455,38 @@ def xiqc_dashboard(bucket_name):
         return jsonify({"error": "bad_request", "message": "This endpoint is for florida bucket only"}), 400
 
     time_range = request.args.get("timeRange", "3h").strip()
+    start_time = request.args.get("startTime", "").strip()
+    end_time = request.args.get("endTime", "").strip()
     selected_ssid = request.args.get("ssid", "").strip()
+
+    # Determine if using custom range or preset
+    use_custom_range = bool(start_time and end_time)
+
+    if use_custom_range:
+        # Validate custom dates
+        try:
+            from datetime import datetime
+            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            # Format for Flux: 2026-08-14T12:00:00Z
+            start_flux = start_dt.isoformat() if start_dt.tzinfo else start_dt.isoformat() + 'Z'
+            end_flux = end_dt.isoformat() if end_dt.tzinfo else end_dt.isoformat() + 'Z'
+            range_param = f"start: {start_flux}, stop: {end_flux}"
+        except Exception as e:
+            log.warning(f"Invalid custom date range: {e}")
+            use_custom_range = False
+            range_param = f"start: -{time_range}"
+    else:
+        range_param = f"start: -{time_range}"
 
     try:
         # Simplified Flux queries that work with the actual data
+        # Using dynamic range_param for preset or custom date ranges
 
         # 1. Raw MAC data - count by time and calculate peaks/unique
         mac_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "MAC")
   |> limit(n: 5000)
 '''
@@ -471,7 +494,7 @@ from(bucket: "{bucket_name}")
         # 2. RxBytesDelta and TxBytesDelta - throughput data
         throughput_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and (r["_field"] == "RxBytesDelta" or r["_field"] == "TxBytesDelta"))
   |> limit(n: 5000)
 '''
@@ -479,7 +502,7 @@ from(bucket: "{bucket_name}")
         # 3. Protocol field - for distribution
         protocol_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "Protocol")
   |> limit(n: 5000)
 '''
@@ -487,7 +510,7 @@ from(bucket: "{bucket_name}")
         # 4. OsClassName - device type distribution
         device_type_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "OsClassName")
   |> limit(n: 5000)
 '''
@@ -495,7 +518,7 @@ from(bucket: "{bucket_name}")
         # 5. ApName - access point distribution
         ap_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "ApName")
   |> limit(n: 5000)
 '''
@@ -503,7 +526,7 @@ from(bucket: "{bucket_name}")
         # 6. SSID - network distribution
         ssid_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "SSID")
   |> limit(n: 5000)
 '''
@@ -511,7 +534,7 @@ from(bucket: "{bucket_name}")
         # 7. Hostname - for top clients
         hostname_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "Hostname")
   |> limit(n: 5000)
 '''
@@ -519,7 +542,7 @@ from(bucket: "{bucket_name}")
         # 8. Events
         events_query = f'''
 from(bucket: "{bucket_name}")
-  |> range(start: -{time_range})
+  |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "Events")
   |> sort(columns: ["_time"], desc: true)
   |> limit(n: 100)
@@ -538,7 +561,12 @@ from(bucket: "{bucket_name}")
             "clientsByAP": [],
             "topClients": [],
             "events": [],
-            "timeRange": time_range,
+            "timeRange": time_range if not use_custom_range else "custom",
+            "customRange": {
+                "start": start_time,
+                "end": end_time,
+                "active": use_custom_range
+            }
         }
 
         try:
