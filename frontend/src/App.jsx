@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import ReportPage from './pages/ReportPage'
+import FloridaDashboardPage from './pages/FloridaDashboardPage'
 import Spinner from './components/Spinner'
 
 function ProtectedRoute({ children }) {
@@ -43,6 +44,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/florida"
+            element={
+              <ProtectedRoute>
+                <FloridaDashboardPage />
               </ProtectedRoute>
             }
           />
