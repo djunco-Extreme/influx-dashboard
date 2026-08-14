@@ -9,10 +9,37 @@ import { Wifi, Users, Activity, TrendingUp } from 'lucide-react'
 
 export default function FloridaDashboard() {
   const [timeRange, setTimeRange] = useState('3h')
+  const [selectedSSID, setSelectedSSID] = useState('all')
+  const [ssidOptions, setSsidOptions] = useState([])
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Fetch available SSIDs
+  useEffect(() => {
+    const fetchSSIDs = async () => {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+        const response = await axios.get(
+          `/api/buckets/florida/ssids`,
+          { signal: controller.signal }
+        )
+        clearTimeout(timeoutId)
+
+        const ssids = response.data.ssids || []
+        setSsidOptions(['all', ...ssids])
+      } catch (err) {
+        console.warn('Failed to fetch SSIDs:', err)
+        setSsidOptions(['all'])
+      }
+    }
+
+    fetchSSIDs()
+  }, [])
+
+  // Fetch dashboard data when timeRange or SSID changes
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true)
@@ -21,10 +48,12 @@ export default function FloridaDashboard() {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-        const response = await axios.get(
-          `/api/buckets/florida/xiqc-dashboard?timeRange=${timeRange}`,
-          { signal: controller.signal }
-        )
+        let url = `/api/buckets/florida/xiqc-dashboard?timeRange=${timeRange}`
+        if (selectedSSID && selectedSSID !== 'all') {
+          url += `&ssid=${encodeURIComponent(selectedSSID)}`
+        }
+
+        const response = await axios.get(url, { signal: controller.signal })
         clearTimeout(timeoutId)
 
         setDashboardData(response.data)
@@ -41,7 +70,7 @@ export default function FloridaDashboard() {
     }
 
     fetchDashboardData()
-  }, [timeRange])
+  }, [timeRange, selectedSSID])
 
   if (loading) {
     return (
@@ -65,7 +94,7 @@ export default function FloridaDashboard() {
     <div className="space-y-6">
       {/* Header and Controls */}
       <div className="bg-dark-800 border border-dark-700 rounded-lg p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Wifi size={24} className="text-blue-400" />
             <div>
@@ -73,17 +102,41 @@ export default function FloridaDashboard() {
               <p className="text-sm text-gray-400 mt-1">Florida Bucket - Network Analytics</p>
             </div>
           </div>
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            className="px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
-          >
-            <option value="1h">Last 1 Hour</option>
-            <option value="3h">Last 3 Hours</option>
-            <option value="6h">Last 6 Hours</option>
-            <option value="12h">Last 12 Hours</option>
-            <option value="24h">Last 24 Hours</option>
-          </select>
+        </div>
+
+        {/* Controls Row */}
+        <div className="flex gap-4">
+          {/* SSID Selector */}
+          <div className="flex-1">
+            <label className="text-sm text-gray-400 block mb-2">Select Network (SSID)</label>
+            <select
+              value={selectedSSID}
+              onChange={(e) => setSelectedSSID(e.target.value)}
+              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+            >
+              {ssidOptions.map((ssid) => (
+                <option key={ssid} value={ssid}>
+                  {ssid === 'all' ? 'All Networks' : ssid}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Time Range Selector */}
+          <div className="flex-1">
+            <label className="text-sm text-gray-400 block mb-2">Time Range</label>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+            >
+              <option value="1h">Last 1 Hour</option>
+              <option value="3h">Last 3 Hours</option>
+              <option value="6h">Last 6 Hours</option>
+              <option value="12h">Last 12 Hours</option>
+              <option value="24h">Last 24 Hours</option>
+            </select>
+          </div>
         </div>
       </div>
 
