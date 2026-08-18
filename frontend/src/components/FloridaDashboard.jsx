@@ -23,7 +23,7 @@ export default function FloridaDashboard() {
     const fetchSSIDs = async () => {
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
 
         const response = await axios.get(
           `/api/buckets/florida/ssids`,
@@ -49,7 +49,7 @@ export default function FloridaDashboard() {
       setError(null)
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        const timeoutId = setTimeout(() => controller.abort(), 60000)
 
         let url = '/api/buckets/florida/xiqc-dashboard?'
 
