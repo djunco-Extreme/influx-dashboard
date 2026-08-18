@@ -71,7 +71,8 @@ export default function FloridaDashboard() {
         if (err.name === 'AbortError') {
           setError('Dashboard loading timed out. Try a shorter time range.')
         } else {
-          setError('Failed to load dashboard data')
+          const errorMsg = err.response?.data?.message || err.message || 'Unknown error'
+          setError(`Failed to load dashboard data: ${errorMsg}`)
         }
         console.error('Dashboard fetch error:', err)
       } finally {
