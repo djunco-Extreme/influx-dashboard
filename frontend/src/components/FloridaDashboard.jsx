@@ -49,7 +49,7 @@ export default function FloridaDashboard() {
       setError(null)
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 60000)
+        const timeoutId = setTimeout(() => controller.abort(), 90000)
 
         let url = '/api/buckets/florida/xiqc-dashboard?'
 

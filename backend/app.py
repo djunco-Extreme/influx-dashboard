@@ -528,10 +528,10 @@ from(bucket: "{bucket_name}")
 from(bucket: "{bucket_name}")
   |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "MAC")
+  |> limit(n: 10000)
   |> group(columns: ["SSID"])
-  |> distinct(column: "_value")
+  |> unique(column: "_value")
   |> group()
-  |> limit(n: 5000)
 '''
 
         # 7. Hostname - for top clients
