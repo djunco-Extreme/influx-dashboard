@@ -523,17 +523,15 @@ from(bucket: "{bucket_name}")
   |> limit(n: 5000)
 '''
 
-        # 6. SSID - network distribution (count unique clients per SSID)
+        # 6. SSID - network distribution (count unique clients per SSID across entire time range)
         ssid_query = f'''
 from(bucket: "{bucket_name}")
   |> range({range_param})
   |> filter(fn: (r) => r["_measurement"] == "MuStats" and r["_field"] == "MAC")
   |> group(columns: ["SSID"])
-  |> aggregateWindow(every: 1h, fn: (tables=<-) => tables
-      |> distinct(column: "_value")
-      |> count()
-  )
+  |> unique(column: "_value")
   |> group()
+  |> count()
 '''
 
         # 7. Hostname - for top clients
@@ -831,26 +829,25 @@ def _transform_ap_data(data, selected_ssid=""):
 
 
 def _transform_ssid_data(data):
-    """Transform SSID data into distinct client count by network."""
+    """Transform SSID data into unique client count by network (each device counted once)."""
     ssid_counts = {}
 
     for item in data:
-        # Try to get SSID from tag or field
-        ssid = item.get("SSID", item.get("tag_SSID", "Unknown"))
+        ssid = item.get("SSID", "Unknown")
         count = item.get("value", 0)
 
-        if not ssid or ssid == "Unknown" or not count:
+        if not ssid or ssid == "Unknown":
             continue
 
         if isinstance(count, str):
             try:
                 count = int(count)
             except:
-                continue
+                count = 0
 
         ssid_counts[ssid] = {"name": ssid, "count": count}
 
-    return sorted(list(ssid_counts.values()), key=lambda x: x["count"], reverse=True)[:20]
+    return sorted(list(ssid_counts.values()), key=lambda x: x["count"], reverse=True)
 
 
 def _transform_top_clients_data(data, selected_ssid=""):
